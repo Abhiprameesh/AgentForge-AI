@@ -6,12 +6,13 @@ from agent_memory import (
 )
 
 def resume_agent(user_input):
-
     # RETRIEVE MEMORY
     memories = retrieve_agent_memory(
         "resume",
         user_input
     )
+
+
 
     memory_context = "\n".join(
         memories
