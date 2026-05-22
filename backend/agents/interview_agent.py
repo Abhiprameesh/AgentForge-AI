@@ -19,24 +19,22 @@ def interview_agent(user_input):
 
     response = llm.invoke(
         f"""
-        You are an AI Career Mentor.
+        You are an Expert Technical Interviewer.
 
-        Previous Career Memories:
+        Previous Interview Memories:
         {memory_context}
 
-        User Request:
+        User Request / Answer:
         {user_input}
 
         Responsibilities:
-        - AI/ML career guidance
-        - internship advice
-        - roadmap creation
-        - learning strategies
-        - project guidance
+        - Conduct a mock interview based on the user's resume and career interests.
+        - Ask one question at a time.
+        - Evaluate the user's answer constructively and give brief feedback before asking the next question.
+        - Be professional but encouraging.
+        - Keep your responses concise since they will be spoken out loud via text-to-speech.
 
-        Use previous memories if relevant.
-
-        Give practical personalized advice.
+        Respond directly to the user as if you are speaking to them in an interview.
         """
     )
 

@@ -1,5 +1,11 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import base64
+import tempfile
+import os
+import whisper
+import edge_tts
+import asyncio
 
 from research_agent import store_research_paper
 from workflow import app_workflow
@@ -16,18 +22,44 @@ from profile_memory import (
 
 app = FastAPI()
 
+# Load Whisper model globally to save time
+print("Loading Whisper model...")
+try:
+    whisper_model = whisper.load_model("base")
+    print("Whisper model loaded!")
+except Exception as e:
+    print(f"Warning: Failed to load whisper model. Audio transcription might fail: {e}")
+    whisper_model = None
+
 # INPUT MODEL
 class UserInput(BaseModel):
 
-    message: str
+    message: str | None = None
+    audio_data: str | None = None
     resume_path: str | None = None
     doc_type: str = "Resume"
 
 # CHAT ENDPOINT
 @app.post("/chat")
-def chat(user_input: UserInput):
+async def chat(user_input: UserInput):
 
     try:
+        # Handle Audio Input
+        if user_input.audio_data and whisper_model:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+                audio_bytes = base64.b64decode(user_input.audio_data)
+                temp_audio.write(audio_bytes)
+                temp_audio_path = temp_audio.name
+            
+            # Transcribe with Whisper
+            result = whisper_model.transcribe(temp_audio_path)
+            user_input.message = result["text"].strip()
+            
+            # Cleanup temp file
+            os.remove(temp_audio_path)
+        
+        if not user_input.message:
+            return {"response": "Please provide a message or audio input."}
 
         # Load persistent user profile
         profile_data = load_profile()
@@ -109,10 +141,27 @@ def chat(user_input: UserInput):
 
         store_memory(important_memory)
 
+        # Generate Audio Response with Edge-TTS
+        audio_response_b64 = None
+        if user_input.audio_data or "interview" in workflow_result.get("selected_agent", "").lower():
+            # Generate audio if the user spoke to us OR if it's the interview agent
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_mp3:
+                temp_mp3_path = temp_mp3.name
+            
+            # Voice can be changed: en-US-AriaNeural, en-US-GuyNeural, en-GB-SoniaNeural, etc.
+            communicate = edge_tts.Communicate(response_text, "en-US-AriaNeural")
+            await communicate.save(temp_mp3_path)
+            
+            with open(temp_mp3_path, "rb") as f:
+                audio_response_b64 = base64.b64encode(f.read()).decode("utf-8")
+            
+            os.remove(temp_mp3_path)
+
         return {
             "response": response_text,
             "selected_agent": workflow_result.get("selected_agent", "Unknown"),
-            "retrieved_chunks": workflow_result.get("retrieved_chunks", [])
+            "retrieved_chunks": workflow_result.get("retrieved_chunks", []),
+            "audio_response": audio_response_b64
         }
 
     except Exception as e:

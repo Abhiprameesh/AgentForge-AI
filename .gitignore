@@ -11,6 +11,8 @@ venv/
 
 # Env files
 .env
+uploaded_document.pdf
+uploaded_doc_embeddings.json
 
 learning.doc
 
@@ -36,3 +38,34 @@ Thumbs.db
 
 # Notebook
 .ipynb_checkpoints/
+
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+.venv/
+venv/
+
+# ChromaDB
+chroma_db/
+research_db/
+agent_memory_db/
+
+# SQLite
+*.sqlite3
+
+# Temporary Audio Files
+*.wav
+*.mp3
+
+# Uploaded Files
+uploaded_resume.pdf
+uploaded_document.pdf
+
+# Environment Variables
+.env
+
+# VSCode
+.vscode/

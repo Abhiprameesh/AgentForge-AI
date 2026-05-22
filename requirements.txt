@@ -9,3 +9,6 @@ tavily-python
 pypdf
 chromadb
 sentence-transformers
+openai-whisper
+edge-tts
+audio-recorder-streamlit

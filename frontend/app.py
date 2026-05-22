@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 import os
 from datetime import datetime
+import base64
+from audio_recorder_streamlit import audio_recorder
 
 # PAGE CONFIG
 st.set_page_config(
@@ -130,6 +132,11 @@ for message in st.session_state.messages:
                 for idx, chunk in enumerate(message["chunks"]):
                     st.markdown(f"**Source {idx+1}**\n\n{chunk}")
                     
+        if "audio_response_b64" in message:
+            audio_bytes = base64.b64decode(message["audio_response_b64"])
+            # Don't autoplay history
+            st.audio(audio_bytes, format="audio/mp3")
+            
         if "timestamp" in message:
             st.caption(f"_{message['timestamp']}_")
 
@@ -138,10 +145,20 @@ user_input = st.chat_input(
     "Ask something..."
 )
 
+# AUDIO INPUT
+st.markdown("Or speak your message:")
+audio_bytes = audio_recorder(text="Record", icon_size="2x")
+
 # USER MESSAGE
-if user_input:
+if user_input or audio_bytes:
 
     current_time = datetime.now().strftime("%I:%M %p")
+    
+    audio_data_b64 = None
+    if audio_bytes:
+        audio_data_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        if not user_input:
+            user_input = "🎤 *Voice Message*"
 
     st.session_state.messages.append(
         {
@@ -158,7 +175,8 @@ if user_input:
 
     payload = {
         "message": user_input,
-        "doc_type": doc_type
+        "doc_type": doc_type,
+        "audio_data": audio_data_b64
     }
 
     # SAVE UPLOADED FILE
@@ -185,6 +203,8 @@ if user_input:
     spinner_msg = "🧠 Research Agent analyzing paper..." if doc_type == "Research Paper" else "📄 Resume Agent reviewing ATS score..."
     with st.spinner(spinner_msg):
 
+        audio_response_b64 = None
+        
         try:
 
             response = requests.post(
@@ -198,6 +218,8 @@ if user_input:
                 "response",
                 "No response from agent."
             )
+            
+            audio_response_b64 = data.get("audio_response", None)
 
             # OBSERVABILITY
             st.session_state.selected_agent = data.get(
@@ -225,6 +247,9 @@ if user_input:
         "timestamp": assistant_time
     }
     
+    if audio_response_b64:
+        assistant_msg["audio_response_b64"] = audio_response_b64
+    
     if st.session_state.retrieved_chunks:
         assistant_msg["chunks"] = st.session_state.retrieved_chunks
         
@@ -234,6 +259,10 @@ if user_input:
     with st.chat_message("assistant"):
 
         st.markdown(agent_response)
+        
+        if audio_response_b64:
+            audio_bytes = base64.b64decode(audio_response_b64)
+            st.audio(audio_bytes, format="audio/mp3", autoplay=True)
         
         if st.session_state.retrieved_chunks:
             with st.expander("📚 Source Citations"):
