@@ -52,10 +52,6 @@ venv/
 chroma_db/
 research_db/
 agent_memory_db/
-backend/research_db/
-backend/chroma_db/
-backend/agent_memory_db/
-
 
 # SQLite
 *.sqlite3
