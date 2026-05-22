@@ -3,6 +3,12 @@ from pydantic import BaseModel
 import base64
 import tempfile
 import os
+
+# Add ffmpeg to PATH dynamically for Windows
+ffmpeg_path = r"C:\Users\Abhinand Prameesh\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin"
+if os.path.exists(ffmpeg_path) and ffmpeg_path not in os.environ["PATH"]:
+    os.environ["PATH"] = ffmpeg_path + os.pathsep + os.environ["PATH"]
+
 import whisper
 import edge_tts
 import asyncio
