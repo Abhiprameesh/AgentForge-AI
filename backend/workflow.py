@@ -40,34 +40,21 @@ class AgentState(TypedDict):
     retrieved_chunks: list
 
 
-# PLANNER NODE
-def planner_node(state: AgentState):
+# NODES
+def router_node(state: AgentState):
 
     user_input = state["user_input"]
 
-    response = llm.invoke(
-        f"""
-        You are an AI planner.
-
-        Understand the user's request carefully.
-
-        Briefly analyze:
-        - what the user wants
-        - what type of task it is
-        - which specialized agent may help
-
-        User Request:
-        {user_input}
-        """
+    selected_agent = router_agent(
+        user_input
     )
 
     return {
-        "response": response.content
+        "selected_agent": selected_agent
     }
 
 
-# EXECUTOR NODE
-def executor_node(state: AgentState):
+def resume_node(state: AgentState):
 
     user_input = state["user_input"]
 
@@ -76,52 +63,88 @@ def executor_node(state: AgentState):
         ""
     )
 
-    # ROUTER DECISION
-    selected_agent = router_agent(
-        user_input
+    response = resume_agent(
+        user_input,
+        resume_text
     )
-
-    # OBSERVABILITY VARIABLES
-    retrieved_memories = []
-
-    retrieved_chunks = []
-
-    # RESUME AGENT
-    if "resume" in selected_agent:
-
-        response = resume_agent(
-            user_input,
-            resume_text
-        )
-
-    # RESEARCH AGENT
-    elif "research" in selected_agent:
-
-        response, retrieved_chunks = research_agent(
-            user_input,
-            return_chunks=True
-        )
-
-    # INTERVIEW AGENT
-    elif "interview" in selected_agent:
-
-        response = interview_agent(
-            user_input
-        )
-
-    # DEFAULT → CAREER AGENT
-    else:
-
-        response = career_agent(
-            user_input
-        )
 
     return {
         "response": response,
-        "selected_agent": selected_agent,
-        "retrieved_memories": retrieved_memories,
+        "selected_agent": "resume",
+        "retrieved_memories": [],
+        "retrieved_chunks": []
+    }
+
+
+def research_node(state: AgentState):
+
+    user_input = state["user_input"]
+
+    response, retrieved_chunks = research_agent(
+        user_input,
+        return_chunks=True
+    )
+
+    return {
+        "response": response,
+        "selected_agent": "research",
+        "retrieved_memories": [],
         "retrieved_chunks": retrieved_chunks
     }
+
+
+def interview_node(state: AgentState):
+
+    user_input = state["user_input"]
+
+    response = interview_agent(
+        user_input
+    )
+
+    return {
+        "response": response,
+        "selected_agent": "interview",
+        "retrieved_memories": [],
+        "retrieved_chunks": []
+    }
+
+
+def career_node(state: AgentState):
+
+    user_input = state["user_input"]
+
+    response = career_agent(
+        user_input
+    )
+
+    return {
+        "response": response,
+        "selected_agent": "career",
+        "retrieved_memories": [],
+        "retrieved_chunks": []
+    }
+
+
+# CONDITIONAL ROUTING FUNCTION
+def route_agent(state: AgentState):
+
+    agent = state.get("selected_agent", "career")
+
+    if "resume" in agent:
+
+        return "resume"
+
+    elif "research" in agent:
+
+        return "research"
+
+    elif "interview" in agent:
+
+        return "interview"
+
+    else:
+
+        return "career"
 
 
 # BUILD GRAPH
@@ -129,27 +152,50 @@ graph = StateGraph(AgentState)
 
 # ADD NODES
 graph.add_node(
-    "planner",
-    planner_node
+    "router",
+    router_node
 )
 
 graph.add_node(
-    "executor",
-    executor_node
+    "resume",
+    resume_node
+)
+
+graph.add_node(
+    "research",
+    research_node
+)
+
+graph.add_node(
+    "interview",
+    interview_node
+)
+
+graph.add_node(
+    "career",
+    career_node
 )
 
 # FLOW
-graph.set_entry_point("planner")
+graph.set_entry_point("router")
 
-graph.add_edge(
-    "planner",
-    "executor"
+# CONDITIONAL EDGE
+graph.add_conditional_edges(
+    "router",
+    route_agent,
+    {
+        "resume": "resume",
+        "research": "research",
+        "interview": "interview",
+        "career": "career"
+    }
 )
 
-graph.add_edge(
-    "executor",
-    END
-)
+# CONNECT CHANNELS TO END
+graph.add_edge("resume", END)
+graph.add_edge("research", END)
+graph.add_edge("interview", END)
+graph.add_edge("career", END)
 
 # COMPILE
 app_workflow = graph.compile()

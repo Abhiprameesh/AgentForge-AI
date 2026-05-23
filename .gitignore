@@ -13,7 +13,7 @@ venv/
 .env
 uploaded_document.pdf
 uploaded_doc_embeddings.json
-
+user_profile.json
 learning.doc
 
 # Pytest / coverage

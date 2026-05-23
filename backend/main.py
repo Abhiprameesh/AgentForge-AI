@@ -13,6 +13,9 @@ import whisper
 import edge_tts
 import asyncio
 
+from agent import llm
+import json
+
 from research_agent import store_research_paper
 from workflow import app_workflow
 
@@ -57,8 +60,8 @@ async def chat(user_input: UserInput):
                 temp_audio.write(audio_bytes)
                 temp_audio_path = temp_audio.name
             
-            # Transcribe with Whisper
-            result = whisper_model.transcribe(temp_audio_path)
+            # Transcribe with Whisper (Offloaded to CPU worker thread)
+            result = await asyncio.to_thread(whisper_model.transcribe, temp_audio_path)
             user_input.message = result["text"].strip()
             
             # Cleanup temp file
@@ -70,8 +73,9 @@ async def chat(user_input: UserInput):
         # Load persistent user profile
         profile_data = load_profile()
 
-        # Retrieve semantic memories
-        relevant_memories = retrieve_memory(
+        # Retrieve semantic memories (Offloaded to DB worker thread)
+        relevant_memories = await asyncio.to_thread(
+            retrieve_memory,
             user_input.message
         )
 
@@ -93,31 +97,57 @@ async def chat(user_input: UserInput):
         if user_input.resume_path:
             
             if user_input.doc_type == "Research Paper":
-                # Store research paper embeddings only
+                # Store research paper embeddings only (Offloaded to DB worker thread)
                 try:
-                    store_research_paper(user_input.resume_path)
+                    await asyncio.to_thread(store_research_paper, user_input.resume_path)
                 except:
                     pass
             else:
                 # Store resume embeddings (optional) and extract text
                 try:
-                    store_research_paper(user_input.resume_path)
+                    await asyncio.to_thread(store_research_paper, user_input.resume_path)
                 except:
                     pass
                 
                 from tools import analyze_resume
 
-                resume_text = analyze_resume.invoke(
+                # Offload heavy PDF parsing to thread pool
+                resume_text = await asyncio.to_thread(
+                    analyze_resume.invoke,
                     {"file_path": user_input.resume_path}
                 )
 
-                # Update persistent profile
-                profile_data["resume_uploaded"] = True
-                profile_data["career_interest"] = "AI Research Internships"
+                # Dynamically extract career interest and skills from resume using LLM
+                try:
+                    extraction_response = await asyncio.to_thread(
+                        llm.invoke,
+                        f"""
+                        You are an expert profile extractor.
+                        Analyze the following resume text and extract two key details in JSON format:
+                        1. "career_interest": A highly specific career focus (e.g. "Computer Vision Engineer", "MLOps Professional", "NLP Specialist") based on their projects/experience.
+                        2. "skills": A list of their top technical skills (maximum 10).
+
+                        Return ONLY a raw valid JSON object with the keys "career_interest" and "skills".
+                        Do not wrap in markdown or backticks.
+
+                        Resume Text:
+                        {resume_text}
+                        """
+                    )
+                    extracted_data = json.loads(extraction_response.content.strip("`").replace("json", "").strip())
+                    profile_data["resume_uploaded"] = True
+                    profile_data["career_interest"] = extracted_data.get("career_interest", "AI Research Internships")
+                    profile_data["skills"] = extracted_data.get("skills", [])
+                except Exception as ex:
+                    profile_data["resume_uploaded"] = True
+                    profile_data["career_interest"] = "AI Research Internships"
+                    profile_data["skills"] = []
+                
                 save_profile(profile_data)
 
-        # Run LangGraph workflow
-        workflow_result = app_workflow.invoke(
+        # Run LangGraph workflow (Offloaded to workflow worker thread)
+        workflow_result = await asyncio.to_thread(
+            app_workflow.invoke,
             {
                 "user_input": f"""
                 User Profile:
@@ -145,7 +175,8 @@ async def chat(user_input: UserInput):
         {response_text}
         """
 
-        store_memory(important_memory)
+        # Offload DB write
+        await asyncio.to_thread(store_memory, important_memory)
 
         # Generate Audio Response with Edge-TTS
         audio_response_b64 = None

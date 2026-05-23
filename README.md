@@ -1,20 +1,74 @@
 # AgentForge-AI
 
-Welcome to **AgentForge-AI**, an intelligent application designed to help users analyze resumes, search for career opportunities, and explore AI research contexts using state-of-the-art Generative AI technologies.
+**AgentForge-AI** is a premium, high-performance mock interview preparation suite and technical research copilot tailored specifically for **Machine Learning and Artificial Intelligence job candidates**. 
 
-This project is divided into a **FastAPI backend** and a **Streamlit frontend**, utilizing **LangChain**, **LangGraph**, and **ChromaDB** to orchestrate an Agentic AI workflow with vector-based memory capabilities.
+Built with a **FastAPI backend** and a **Streamlit frontend**, the application leverages **LangChain**, **LangGraph**, and **ChromaDB** to orchestrate specialized agent personas. Candidates can upload their resume to dynamically generate an interactive profile, upload state-of-the-art ML research papers to query complex methodologies, and participate in realistic vocal mock technical interviews powered by speech-to-text (**OpenAI Whisper**) and text-to-speech (**Edge-TTS**).
 
 ---
 
-## 🌟 Features
+## 🧠 Architecture Overview
 
-- **Agentic Workflow**: Uses LangGraph to orchestrate a planner-executor agent structure.
-- **Resume Analysis**: Upload PDF resumes and analyze them automatically using PyPDF and AI, including ATS tips and improvement suggestions.
-- **Research Paper Embedding**: Upload research papers which are processed, chunked, and embedded into a local ChromaDB for semantic retrieval.
-- **Contextual Memory**: Keeps track of user profiles and stores important semantic memory from conversations.
-- **Web Search Integration**: Capable of dynamically searching the web for real-time information using Tavily.
-- **Agent Observability**: Transparently view the active specialized agent handling your request and inspect retrieved research context chunks directly in the UI.
-- **Interactive UI**: Clean, responsive frontend built with Streamlit for a seamless user experience.
+AgentForge-AI operates on an asynchronous event-driven layout, utilizing a modular LangGraph routing engine to coordinate specialized agent execution.
+
+```mermaid
+graph TD
+    subgraph Frontend [Streamlit UI Client]
+        A[User Input: Text or Audio] -->|POST /chat| B(FastAPI Backend)
+        D[Edge-TTS Voice Player] <---|JSON Response| B
+        C[Agent Observability Panel] <---|Selected Agent & Retrieved Chunks| B
+    end
+
+    subgraph AudioProcessing [Audio Processor]
+        B -->|If Audio| Whisper[OpenAI Whisper Transcriber]
+        Whisper -->|Transcribed Text| RouterNode
+    end
+
+    subgraph Orchestration [LangGraph Agent Orchestration]
+        RouterNode[Router Node: LLM Router] -->|State: selected_agent| RouteDecision{Conditional Routing}
+        
+        RouteDecision -->|resume| ResumeNode[Resume & Career Mentor Agent]
+        RouteDecision -->|research| ResearchNode[Research Paper RAG Agent]
+        RouteDecision -->|interview| InterviewNode[Mock Technical Interviewer]
+        RouteDecision -->|career| CareerNode[General AI/ML Career Mentor]
+    end
+
+    subgraph MemoryLayer [State & Vector Memory Layer]
+        ResumeNode -->|Uses| Profile[user_profile.json persistent profile]
+        ResearchNode -->|Query| ResearchDB[(ChromaDB: ML Research Papers)]
+        InterviewNode -->|Recall| AgentMemory[(ChromaDB: Agent Specific Context)]
+        CareerNode -->|Recall| ChatMemory[(ChromaDB: Global Chat Context)]
+    end
+```
+
+---
+
+## 🛠️ Specialized Agents & Workflow
+
+The orchestration pipeline separates routing logic from execution nodes using a clean **LangGraph Conditional Edges** design:
+
+1. **Router Node (`router`)**: Leverages Google Gemini to inspect the user's intent and direct the state to one of four specialized execution nodes in the graph.
+2. **Resume Agent Node (`resume`)**: Performs automated ATS resume analysis. It dynamically critiques the candidate's experiences, identifies keyword gaps, and suggests tailored study roadmaps.
+3. **Research Agent Node (`research`)**: Implements a Vector RAG pipeline. It ingests complex research PDFs, extracts textual segments, computes embeddings locally, and queries them to explain methodologies or formulas.
+4. **Interview Agent Node (`interview`)**: Simulates a live technical interviewer. It conducts voice-supported ML mock interviews, posing coding or systems design questions one at a time and evaluating responses.
+5. **Career Agent Node (`career`)**: Serves as a general career mentor, advising on skill development, projects, and interview strategies.
+
+---
+
+## ⚙️ Technical Deep-Dive
+
+To make the codebase interview-ready and reliable, several advanced backend engineering patterns have been implemented:
+
+### 1. Deterministic Cryptographic Database IDs
+* **The Problem:** Standard python process `hash()` keys are non-deterministic and randomize on every server restart. In older revisions, this caused massive memory duplication in ChromaDB.
+* **The Solution:** Swapped to cryptographic MD5 hashing (`hashlib.md5(text.encode('utf-8')).hexdigest()`) to produce stable, unique document IDs that survive server reboots and support precise memory lookups.
+
+### 2. Smart User Profile Ingestion
+* **The Problem:** Career interest configurations were hardcoded to generic defaults.
+* **The Solution:** Integrated an LLM extraction routine. When a resume PDF is uploaded, Gemini parses the text, extracts key tech skills and the candidate's actual specific career path (e.g., *NLP Specialist*, *MLOps Engineer*), and persists it directly into `user_profile.json` as context for subsequent mock interview sessions.
+
+### 3. Non-Blocking Event Loop (Async Thread Offloading)
+* **The Problem:** CPU-heavy local Whisper transcriptions, PDF parsing, SentenceTransformers local encodings, and network-bound LLM graph calls blocked FastAPI's single event loop, causing server freezes.
+* **The Solution:** Offloaded all synchronous CPU and network dependencies to an asynchronous worker thread pool using `asyncio.to_thread(...)`. The server remains highly responsive even when multiple users are uploading PDFs or transcribing speech.
 
 ---
 
@@ -24,20 +78,30 @@ This project is divided into a **FastAPI backend** and a **Streamlit frontend**,
 AgentForge-AI/
 │
 ├── backend/                  # FastAPI Backend Server
-│   ├── .env                  # Environment variables
-│   ├── main.py               # FastAPI entry point & API endpoints
-│   ├── workflow.py           # LangGraph planner and executor nodes
-│   ├── agent.py              # LLM configuration and tool bindings
-│   ├── tools.py              # Helper tools (Web Search, Resume Analysis, etc.)
-│   ├── research_agent.py     # Logic for embedding/retrieving research papers
-│   ├── memory.py             # Memory utilities
-│   ├── profile_memory.py     # Handles persistent user profile JSON
-│   ├── vector_memory.py      # ChromaDB configuration for chat memory
-│   ├── chroma_db/            # Local directory for chat memory DB
-│   └── research_db/          # Local directory for research DB
+│   ├── .env                  # API keys and local configuration
+│   ├── main.py               # FastAPI server entry point & async API endpoints
+│   ├── workflow.py           # LangGraph conditional graph declaration
+│   ├── agent.py              # LLM client configuration
+│   ├── tools.py              # External agent tool bindings
+│   ├── research_agent.py     # Local SentenceTransformer + PDF parsing pipeline
+│   ├── memory.py             # Chat history structure
+│   ├── profile_memory.py     # Persistent candidate profile management
+│   ├── vector_memory.py      # ChromaDB global conversation memory
+│   ├── agent_memory.py       # ChromaDB agent-specific memory
+│   │
+│   ├── agents/               # Specialized Graph Agent Personas
+│   │   ├── router_agent.py   # State classifier LLM
+│   │   ├── resume_agent.py   # Resume critiquing & ATS analysis
+│   │   ├── research_agent_node.py # Context-aware RAG synthesizer
+│   │   ├── career_agent.py   # AI/ML mentorship advisor
+│   │   └── interview_agent.py# Concise speech-enabled interviewer
+│   │
+│   ├── chroma_db/            # Local vector database for chat memory
+│   ├── research_db/          # Local vector database for paper RAG
+│   └── agent_memory_db/      # Local vector database for agent memories
 │
 ├── frontend/                 # Streamlit Frontend Client
-│   └── app.py                # Main Streamlit UI application
+│   └── app.py                # Chat interface & audio recording client
 │
 ├── requirements.txt          # Python dependencies
 └── README.md                 # Project documentation
@@ -48,34 +112,29 @@ AgentForge-AI/
 ## 🚀 Setup Instructions
 
 ### 1. Prerequisites
-Ensure you have **Python 3.10+** installed. You will also need API keys for:
-- Google Gemini (`GEMINI_API_KEY`)
-- Tavily Search (`TAVILY_API_KEY`)
+Ensure you have **Python 3.10+** installed on your system. You will need API keys for:
+* Google Gemini (`GOOGLE_API_KEY`)
+* Tavily Search (`TAVILY_API_KEY`)
 
 ### 2. Installation
-Clone the repository, create a virtual environment, and install dependencies:
-
 ```bash
 # Clone the repository
 git clone https://github.com/Abhiprameesh/AgentForge-AI.git
 cd AgentForge-AI
 
-# Create virtual environment
+# Create and activate a virtual environment
 python -m venv .venv
-
-# Activate virtual environment
 # On Windows:
 .venv\Scripts\activate
 # On Mac/Linux:
 source .venv/bin/activate
 
-# Install dependencies
+# Install required dependencies
 pip install -r requirements.txt
 ```
 
 ### 3. Environment Variables
-In the `backend` folder, ensure your `.env` file looks like this:
-
+Create a `.env` file in the `backend/` directory:
 ```env
 GOOGLE_API_KEY=your_gemini_api_key
 TAVILY_API_KEY=your_tavily_api_key
@@ -83,12 +142,12 @@ TAVILY_API_KEY=your_tavily_api_key
 
 ### 4. Running the Application
 
-You will need two terminal windows to run both the backend and frontend simultaneously.
+Open two separate terminals and activate the virtual environment in both.
 
 **Terminal 1: Start the FastAPI Backend**
 ```bash
 cd backend
-uvicorn main:app --reload 
+uvicorn main:app --reload
 ```
 
 **Terminal 2: Start the Streamlit Frontend**
@@ -99,62 +158,7 @@ streamlit run app.py
 
 ---
 
-## 🛠️ Tech Stack
-
-- **Frontend**: Streamlit
-- **Backend**: FastAPI, Uvicorn
-- **AI/LLM orchestration**: LangChain, LangGraph, Google Gemini (GenAI)
-- **Vector DB**: ChromaDB, Sentence-Transformers
-- **PDF Processing**: PyPDF
-- **Search Tool**: Tavily
-
----
-
-## 🧠 Architecture Overview
-
-The system operates on a dual-node LangGraph architecture, separating the "thinking" process from the "doing" process:
-
-### 1. Planner Node
-- Analyzes the raw user request and determines what actions need to be taken.
-- Outputs a structured JSON plan detailing the goal, the steps needed, and any required tools (e.g., `web_search`).
-
-### 2. Executor Node
-- Parses the plan generated by the Planner.
-- Retrieves context from persistent memory stores:
-  - **Vector Memory (ChromaDB)**: Recalls previous chat interactions.
-  - **Profile Memory (JSON)**: Loads persistent user preferences (e.g., career interests).
-  - **Research Memory (ChromaDB)**: Finds relevant semantic chunks from uploaded research papers using SentenceTransformers.
-- Manually invokes external tools (like Tavily web search) if specified in the plan.
-- Passes all gathered context, tools outputs, and parsed resume text to the final LLM (Google Gemini) to synthesize a comprehensive, highly personalized response.
-- Outputs observability data (e.g., the selected specialized agent and retrieved chunks) back to the frontend for UI transparency.
-
-This agentic approach ensures the AI doesn't just respond blindly, but actively plans its reasoning and retrieves necessary context before generating an answer.
-
----
-
-
 ## 💡 Usage Guide
-
-1. **Start the Application**: Ensure both the FastAPI backend and Streamlit frontend are running.
-2. **Upload Documents**: Use the sidebar to upload a PDF resume or a research paper. Wait for the success message confirming the document has been embedded.
-3. **Interact with the AI**:
-   - Ask career-related questions: *"Based on my uploaded resume, what roles am I best suited for?"*
-   - Query research papers: *"What are the key findings of the uploaded paper?"*
-   - General queries: *"Can you search the web for the latest AI trends?"*
-4. **Observe the Agent**: Watch the UI to see which specialized agent is handling your request and what context it is pulling from your uploaded documents.
-
----
-
-## 🛠️ Troubleshooting
-
-- **Stale Context / Memory Issues**: If the agent is recalling old or incorrect information, you can clear the local memory by deleting the `backend/chroma_db` and `backend/research_db` directories. Restart the backend server, and the database will be freshly initialized.
-- **API Key Errors**: Ensure that your `.env` file in the `backend` folder contains valid API keys for Google Gemini and Tavily.
-
----
-
-## 🛣️ Roadmap / Future Enhancements
-
-- [ ] **Multi-Format Document Support**: Expand ingestion to support `.docx`, `.txt`, and web URLs.
-- [ ] **Advanced Token Management**: Implement conversational memory truncation to optimize context limits and cost.
-- [ ] **Multi-LLM Support**: Introduce the ability to easily toggle between different LLM providers (e.g., Anthropic Claude, OpenAI).
-- [ ] **Extended Agent Capabilities**: Add more specialized tools for the executor node (e.g., code execution, GitHub repository analysis).
+1. **Define Your Profile:** In the sidebar, select **Resume** and upload a PDF. AgentForge-AI automatically parses your technical experiences, saves your profile, and routes you to the Resume Agent for detailed feedback.
+2. **Research Ingestion:** Select **Research Paper** and upload a deep learning paper. Ask questions like *"Explain how equation 3 in the paper works"* to retrieve semantic context from the ChromaDB vector database.
+3. **Mock Interview Preparation:** Ask the AI *"Let's start a mock interview for a Machine Learning Engineer role"*. Speak your answers aloud via the recording button in the Streamlit UI, and listen to the interviewer's real-time spoken evaluation and follow-up questions.

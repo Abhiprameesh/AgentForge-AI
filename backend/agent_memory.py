@@ -4,6 +4,8 @@ from sentence_transformers import (
     SentenceTransformer
 )
 
+import hashlib
+
 client = chromadb.PersistentClient(
     path="agent_memory_db"
 )
@@ -26,6 +28,8 @@ def store_agent_memory(
         text
     ).tolist()
 
+    mem_id = hashlib.md5(text.encode("utf-8")).hexdigest()
+
     collection.add(
         documents=[text],
         embeddings=[embedding],
@@ -34,7 +38,7 @@ def store_agent_memory(
                 "agent": agent_type
             }
         ],
-        ids=[str(hash(text))]
+        ids=[mem_id]
     )
 
 

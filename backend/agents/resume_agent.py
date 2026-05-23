@@ -5,39 +5,47 @@ from agent_memory import (
     retrieve_agent_memory
 )
 
-def resume_agent(user_input):
+def resume_agent(
+    user_input,
+    resume_text=""
+):
     # RETRIEVE MEMORY
     memories = retrieve_agent_memory(
         "resume",
         user_input
     )
 
-
-
     memory_context = "\n".join(
         memories
     )
 
+    # ATS & Profile Context
+    resume_context = f"""
+    Uploaded Resume Text:
+    {resume_text}
+    """ if resume_text else "No resume uploaded yet. Ask the user to upload their resume in the sidebar."
+
     response = llm.invoke(
         f"""
-        You are an AI Career Mentor.
+        You are a Premium AI Resume Coach and ATS Expert.
 
-        Previous Career Memories:
+        Resume Context:
+        {resume_context}
+
+        Previous Conversation Memories:
         {memory_context}
 
         User Request:
         {user_input}
 
         Responsibilities:
-        - AI/ML career guidance
-        - internship advice
-        - roadmap creation
-        - learning strategies
-        - project guidance
+        - Analyze the uploaded resume text for ATS keyword alignment, phrasing, and formatting.
+        - Give clear, bulleted improvement suggestions with specific, actionable examples.
+        - Map their skills to AI/ML job roles and recommend relevant study topics or project enhancements.
+        - Answer specific resume questions or critique their profile sections.
 
         Use previous memories if relevant.
-
-        Give practical personalized advice.
+        Give practical, highly personalized career and resume advice.
         """
     )
 
