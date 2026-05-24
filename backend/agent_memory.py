@@ -10,6 +10,7 @@ client = chromadb.PersistentClient(
     path="agent_memory_db"
 )
 
+
 collection = client.get_or_create_collection(
     name="agent_memory"
 )
