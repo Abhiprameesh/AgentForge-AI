@@ -37,6 +37,31 @@ It is designed specifically for **AI/ML candidates** who need to mock-interview 
 
 ---
 
+## 🛠️ Tech Stack & Technologies Used
+
+AgentForge-AI leverages a modern, async-first AI engineering stack:
+
+### 🖥️ Frontend Client
+*   **Streamlit:** Web interface with low-friction, responsive interactive components.
+*   **Edge-TTS:** Real-time spoken dialogue generation via text-to-speech synthesis.
+
+### ⚙️ Backend Web API
+*   **FastAPI:** Asynchronous, high-performance web routing framework.
+*   **Uvicorn:** ASGI server for executing the FastAPI application.
+
+### 🧠 Agentic Orchestration & AI
+*   **LangGraph:** Stateful agent orchestration framework for multi-agent loops.
+*   **Google Gemini (via Gen AI SDK):** Primary reasoning and agent router LLM.
+*   **Sentence-Transformers (`all-MiniLM-L6-v2`):** Local model generating dense vector embeddings.
+*   **OpenAI Whisper:** Speech-to-text transcription engine.
+*   **Tavily Search API:** Live search results for candidate career matchmaking.
+
+### 💾 Data & Memory Layer
+*   **ChromaDB:** Local vector database for indexing and querying semantic memories and PDF text chunks.
+*   **PyPDF:** Resume and research document parsing and raw text extraction.
+
+---
+
 ## 📊 Engineering & Performance Highlights
 
 *   **Non-Blocking Async Backend:** Synced CPU-heavy Whisper transcriptions and PDF vector encodings are offloaded to an asynchronous worker thread pool using `asyncio.to_thread`. FastAPI’s main event loop remains unblocked.
