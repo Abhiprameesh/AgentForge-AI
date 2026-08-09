@@ -15,6 +15,10 @@ This project is divided into a **FastAPI backend** and a **Streamlit frontend**,
 
 **A Premium, Voice-Enabled Multi-Agent Interview Preparation Suite and Technical Research Copilot for AI & Machine Learning Candidates.**
 
+<br/>
+
+![AgentForge AI Screen](assets/screenshot.png)
+
 </div>
 
 ---
